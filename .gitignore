@@ -12,3 +12,6 @@ __pycache__/
 
 # Pliki tymczasowe
 *.log
+
+# Zdjęcia robocze
+data/
