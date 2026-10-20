@@ -1,0 +1,14 @@
+# Środowisko wirtualne
+.venv/
+
+# Pliki generowane przez Pythona
+__pycache__/
+*.py[cod]
+
+# Lokalne dane konfiguracyjne
+.env
+.env.*
+!.env.example
+
+# Pliki tymczasowe
+*.log
