@@ -21,7 +21,7 @@ def main():
     print(f"Wczytano zdjęcie: {image_path.name}")
     print(f"Wymiary: {width} x {height} pikseli")
 
-    # Zmniejszamy wyłącznie podgląd, zachowując proporcje.
+    # Przygotowujemy pomniejszony obraz do podglądu i analizy.
     scale = min(1.0, 1200 / width, 800 / height)
     preview = image
 
@@ -32,7 +32,18 @@ def main():
             interpolation=cv2.INTER_AREA,
         )
 
+    # Zamiana obrazu kolorowego na skalę szarości.
+    gray = cv2.cvtColor(preview, cv2.COLOR_BGR2GRAY)
+
+    # Wygładzanie drobnych szczegółów i szumu.
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    # Wykrywanie krawędzi algorytmem Canny'ego.
+    edges = cv2.Canny(blurred, 80, 200)
+
     cv2.imshow("Zdjecie samochodu", preview)
+    cv2.imshow("Skala szarosci", gray)
+    cv2.imshow("Krawedzie", edges)
     print("Naciśnij dowolny klawisz w oknie zdjęcia, aby zakończyć.")
 
     cv2.waitKey(0)
