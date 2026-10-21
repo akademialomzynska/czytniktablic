@@ -15,3 +15,6 @@ __pycache__/
 
 # Zdjęcia robocze
 data/
+
+# Wytrenowane modele i wyniki treningów
+models/
