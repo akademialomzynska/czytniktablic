@@ -2,6 +2,8 @@ from pathlib import Path
 
 import cv2
 
+from recognition import load_character_model, recognize_characters
+
 from segmentation import (
     normalize_character,
     prepare_plate,
@@ -66,6 +68,10 @@ def main():
     if image is None:
         print("Nie udało się odczytać zdjęcia. Sprawdź format pliku.")
         return
+
+    model_dir = project_dir / "models" / "20261021_220903"
+    print(f"Wczytywany model: {model_dir}")
+    model, class_names = load_character_model(model_dir)
 
     height, width = image.shape[:2]
     print(f"Wczytano zdjęcie: {image_path.name}")
@@ -162,6 +168,24 @@ def main():
             for character in characters:
                 normalized = normalize_character(character)
                 normalized_characters.append(normalized)
+
+            plate_number, scores = recognize_characters(
+                normalized_characters,
+                model,
+                class_names,
+            )
+
+            print(f"\nOdczytany numer: {plate_number}")
+            print("Wyniki dla kolejnych znaków:")
+
+            for position, (character, score) in enumerate(
+                zip(plate_number, scores),
+                start=1,
+            ):
+                print(
+                    f"Pozycja {position}: {character}, "
+                    f"wynik softmax: {score:.1%}"
+                )
 
             # Łączymy obrazki w jeden poziomy pasek.
             characters_strip = cv2.hconcat(normalized_characters)

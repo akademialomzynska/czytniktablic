@@ -6,39 +6,20 @@ import cv2
 import numpy as np
 
 from segmentation import normalize_character, prepare_plate
-
+from font_renderer import render_character
+from template_renderer import render_template
 
 CHARACTERS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
-def create_example(character, rng, fonts):
-    # Tworzymy jasne tło, podobne do tła tablicy.
-    canvas = np.full((128, 128, 3), 255, dtype=np.uint8)
+def create_example(character, rng, fonts, template_probability=0.0):
+    canvas = None
 
-    font = int(rng.choice(fonts))
-    font_scale = float(rng.uniform(2.0, 3.0))
-    thickness = int(rng.integers(2, 5))
+    if template_probability > 0 and rng.random() < template_probability:
+        canvas = render_template(character, rng)
 
-    (text_width, text_height), _ = cv2.getTextSize(
-        character,
-        font,
-        font_scale,
-        thickness,
-    )
-
-    left = (canvas.shape[1] - text_width) // 2
-    baseline_y = (canvas.shape[0] + text_height) // 2
-
-    cv2.putText(
-        canvas,
-        character,
-        (left, baseline_y),
-        font,
-        font_scale,
-        (0, 0, 0),
-        thickness,
-        cv2.LINE_AA,
-    )
+    if canvas is None:
+        canvas = render_character(character, rng, fonts)
 
         # Niewielkie nachylenie znaku.
     angle = float(rng.uniform(-8.0, 8.0))
@@ -108,6 +89,9 @@ def generate_split(output_dir, split_name, settings, used_hashes):
                 character,
                 rng,
                 settings["fonts"],
+                template_probability=settings.get(
+                    "template_probability", 0.0
+                ),
             )
 
             # Sprawdzamy zawartość pikseli, a nie nazwę pliku.
@@ -132,7 +116,7 @@ def generate_split(output_dir, split_name, settings, used_hashes):
 
 def main():
     project_dir = Path(__file__).resolve().parent
-    output_dir = project_dir / "data" / "synthetic_v1"
+    output_dir = project_dir / "data" / "synthetic_v3"
 
     # Każdy nowy zbiór otrzymuje osobny folder.
     if output_dir.exists():
@@ -148,17 +132,22 @@ def main():
         "train": {
             "samples_per_class": 200,
             "seed": 42,
+            "template_probability": 0.5,
             "fonts": [
-                cv2.FONT_HERSHEY_SIMPLEX,
-                cv2.FONT_HERSHEY_DUPLEX,
-                cv2.FONT_HERSHEY_COMPLEX,
+                r"C:\Windows\Fonts\arial.ttf",
+                r"C:\Windows\Fonts\arialbd.ttf",
+                r"C:\Windows\Fonts\ARIALN.TTF",
+                r"C:\Windows\Fonts\ARIALNB.TTF",
+                r"C:\Windows\Fonts\consola.ttf",
+                r"C:\Windows\Fonts\consolab.ttf",
             ],
         },
         "validation": {
             "samples_per_class": 50,
             "seed": 2026,
+            "template_probability": 0.0,
             "fonts": [
-                cv2.FONT_HERSHEY_TRIPLEX,
+                r"C:\Windows\Fonts\bahnschrift.ttf",
             ],
         },
     }
