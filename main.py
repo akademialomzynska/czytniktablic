@@ -4,55 +4,19 @@ import cv2
 
 from recognition import load_character_model, recognize_characters
 
+from plate_detection import (
+    find_bright_candidates,
+    find_plate_candidates,
+    find_text_candidates,
+    select_plate_candidate,
+)
+
 from segmentation import (
     normalize_character,
     prepare_plate,
     segment_characters,
 )
 
-def find_plate_candidates(edges):
-    contours, _ = cv2.findContours(
-        edges,
-        cv2.RETR_LIST,
-        cv2.CHAIN_APPROX_SIMPLE,
-    )
-
-    image_height, image_width = edges.shape
-    image_area = image_height * image_width
-    candidates = []
-
-    for contour in contours:
-        area = cv2.contourArea(contour)
-
-        # Pomijamy obiekty zbyt małe lub zbyt duże względem zdjęcia.
-        if not 0.001 <= area / image_area <= 0.15:
-            continue
-
-        perimeter = cv2.arcLength(contour, True)
-        polygon = cv2.approxPolyDP(contour, 0.02 * perimeter, True)
-
-        # Szukamy wypukłych czworokątów.
-        if len(polygon) != 4 or not cv2.isContourConvex(polygon):
-            continue
-
-        x, y, width, height = cv2.boundingRect(polygon)
-        aspect_ratio = width / height
-
-        # Tablica jednorzędowa jest wyraźnie szersza niż wyższa.
-        if not 2.0 <= aspect_ratio <= 6.0:
-            continue
-
-        # Odrzucamy kontury słabo wypełniające otaczający prostokąt.
-        rectangularity = area / (width * height)
-
-        if rectangularity < 0.65:
-            continue
-
-        candidates.append(polygon)
-
-    candidates.sort(key=cv2.contourArea, reverse=True)
-
-    return len(contours), candidates
 
 
 def main():
@@ -99,6 +63,22 @@ def main():
 
     contour_count, candidates = find_plate_candidates(edges)
 
+    text_candidates, text_mask = find_text_candidates(gray)
+    candidates.extend(text_candidates)
+
+    bright_candidates = find_bright_candidates(gray)
+    candidates.extend(bright_candidates)
+
+    print(
+        f"Kandydaci znalezieni przez analizę jasności: "
+        f"{len(bright_candidates)}"
+    )
+
+    print(
+        f"Kandydaci znalezieni przez analizę tekstu: "
+        f"{len(text_candidates)}"
+    )
+
     print(f"Liczba znalezionych konturów: {contour_count}")
     print(f"Liczba kandydatów na tablicę: {len(candidates)}")
 
@@ -124,23 +104,22 @@ def main():
             0.7,
             (0, 255, 0),
             2,
+        ) 
+
+    selected = select_plate_candidate(image, preview, candidates)
+
+    if selected is not None:
+        plate = selected["plate"]
+
+        print(f"Wybrano kandydata: {selected['number']}")
+
+        cv2.polylines(
+            detection_preview,
+            [selected["polygon"]],
+            True,
+            (0, 0, 255),
+            3,
         )
-
-    if len(candidates) == 1:
-        polygon = candidates[0]
-        x, y, plate_width, plate_height = cv2.boundingRect(polygon)
-
-        # Kontur znaleźliśmy na pomniejszonym obrazie.
-        # Przeliczamy współrzędne na rozmiar oryginalnego zdjęcia.
-        scale_x = image.shape[1] / preview.shape[1]
-        scale_y = image.shape[0] / preview.shape[0]
-
-        left = max(0, int(x * scale_x))
-        top = max(0, int(y * scale_y))
-        right = min(image.shape[1], int((x + plate_width) * scale_x) + 1)
-        bottom = min(image.shape[0], int((y + plate_height) * scale_y) + 1)
-
-        plate = image[top:bottom, left:right].copy()
 
         print(
             f"Wymiary wyciętej tablicy: "
@@ -239,11 +218,8 @@ def main():
         cv2.imshow("Tablica binarna", binary_preview)
         cv2.imshow("Podzial na znaki", segmentation_preview)
 
-    elif len(candidates) == 0:
-        print("Nie znaleziono kandydata na tablicę.")
-
     else:
-        print("Znaleziono kilku kandydatów. Wybór tablicy dodamy później.")
+        print("Nie znaleziono obszaru z wiarygodnym układem znaków.")
 
     cv2.imshow("Zdjecie samochodu", preview)
     cv2.imshow("Skala szarosci", gray)
