@@ -8,6 +8,10 @@ from plate_detection import (
     find_text_candidates,
     select_plate_candidate,
 )
+from perspective import (
+    find_edge_candidates,
+    find_perspective_candidates,
+)
 from recognition import load_character_model, recognize_characters
 from segmentation import (
     normalize_character,
@@ -15,20 +19,12 @@ from segmentation import (
     segment_characters,
 )
 
-from perspective import (
-    find_edge_candidates,
-    find_perspective_candidates,
-)
-
 
 class PlateReader:
     def __init__(self, model_dir):
-        # Model wczytujemy raz przy tworzeniu czytnika.
         self.model, self.class_names = load_character_model(model_dir)
 
     def read(self, image_rgb):
-        # GUI przekazuje obraz Pillow w kolorach RGB.
-        # OpenCV pracuje tutaj na obrazie BGR.
         image = cv2.cvtColor(
             np.array(image_rgb.convert("RGB")),
             cv2.COLOR_RGB2BGR,
@@ -56,54 +52,56 @@ class PlateReader:
 
         text_candidates, _ = find_text_candidates(gray)
         candidates.extend(text_candidates)
+        candidates.extend(find_bright_candidates(gray))
 
-        bright_candidates = find_bright_candidates(gray)
-        candidates.extend(bright_candidates)
+        candidate_groups = [
+            (
+                "Zwykłe wycinanie",
+                candidates,
+                False,
+            ),
+            (
+                "Perspektywa z jasnych obszarów",
+                find_perspective_candidates(gray),
+                True,
+            ),
+            (
+                "Perspektywa z krawędzi",
+                find_edge_candidates(edges),
+                True,
+            ),
+        ]
 
-        selected = select_plate_candidate(
-            image,
-            preview,
-            candidates,
-        )
+        selected = None
+        selected_method = ""
 
-        # Jeśli zwykłe wycinanie nie dało wyniku,
-        # sprawdzamy czworokąty po korekcji perspektywy.
-        if selected is None:
-            perspective_candidates = find_perspective_candidates(
-                gray
-            )
-
+        for method, method_candidates, rectify in candidate_groups:
             print(
-                "Próba korekcji perspektywy: "
-                f"{len(perspective_candidates)} kandydatów"
+                f"{method}: "
+                f"{len(method_candidates)} kandydatów"
             )
 
-            selected = select_plate_candidate(
+            current = select_plate_candidate(
                 image,
                 preview,
-                perspective_candidates,
-                rectify=True,
+                method_candidates,
+                rectify=rectify,
             )
 
-                # Gdy wcześniejsze metody nie znalazły tablicy,
-        # sprawdzamy obwiednie konturów krawędziowych.
-        if selected is None:
-            edge_candidates = find_edge_candidates(edges)
+            if current is None:
+                continue
 
-            print(
-                "Próba wykrywania przez obwiednie krawędzi: "
-                f"{len(edge_candidates)} kandydatów"
-            )
-
-            selected = select_plate_candidate(
-                image,
-                preview,
-                edge_candidates,
-                rectify=True,
-            )
+            if (
+                selected is None
+                or current["score"] > selected["score"]
+            ):
+                selected = current
+                selected_method = method
 
         if selected is None:
             return None
+
+        print(f"Wybrana metoda: {selected_method}")
 
         plate = selected["plate"]
         binary = prepare_plate(plate)
