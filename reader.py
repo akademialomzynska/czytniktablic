@@ -14,6 +14,7 @@ from segmentation import (
     prepare_plate,
     segment_characters,
 )
+from perspective import find_perspective_candidates
 
 
 class PlateReader:
@@ -60,6 +61,25 @@ class PlateReader:
             preview,
             candidates,
         )
+
+        # Jeśli zwykłe wycinanie nie dało wyniku,
+        # sprawdzamy czworokąty po korekcji perspektywy.
+        if selected is None:
+            perspective_candidates = find_perspective_candidates(
+                gray
+            )
+
+            print(
+                "Próba korekcji perspektywy: "
+                f"{len(perspective_candidates)} kandydatów"
+            )
+
+            selected = select_plate_candidate(
+                image,
+                preview,
+                perspective_candidates,
+                rectify=True,
+            )
 
         if selected is None:
             return None

@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 
 from segmentation import prepare_plate, segment_characters
+from perspective import rectify_plate
 
 def find_text_candidates(gray):
     image_height, image_width = gray.shape
@@ -144,30 +145,47 @@ def find_bright_candidates(gray):
     return candidates
 
 
-def select_plate_candidate(image, preview, candidates):
+def select_plate_candidate(
+    image,
+    preview,
+    candidates,
+    rectify=False,
+):
     scale_x = image.shape[1] / preview.shape[1]
     scale_y = image.shape[0] / preview.shape[0]
 
     best = None
 
     for number, polygon in enumerate(candidates, start=1):
-        x, y, width, height = cv2.boundingRect(polygon)
+        if rectify:
+            # Przeliczamy narożniki z podglądu na pełne zdjęcie.
+            original_polygon = polygon.reshape(4, 2).astype(
+                np.float32
+            )
+            original_polygon[:, 0] *= scale_x
+            original_polygon[:, 1] *= scale_y
 
-        left = max(0, int(np.floor(x * scale_x)))
-        top = max(0, int(np.floor(y * scale_y)))
-        right = min(
-            image.shape[1],
-            int(np.ceil((x + width) * scale_x)),
-        )
-        bottom = min(
-            image.shape[0],
-            int(np.ceil((y + height) * scale_y)),
-        )
+            plate = rectify_plate(image, original_polygon)
 
-        if right <= left or bottom <= top:
-            continue
+        else:
+            x, y, width, height = cv2.boundingRect(polygon)
 
-        plate = image[top:bottom, left:right].copy()
+            left = max(0, int(np.floor(x * scale_x)))
+            top = max(0, int(np.floor(y * scale_y)))
+            right = min(
+                image.shape[1],
+                int(np.ceil((x + width) * scale_x)),
+            )
+            bottom = min(
+                image.shape[0],
+                int(np.ceil((y + height) * scale_y)),
+            )
+
+            if right <= left or bottom <= top:
+                continue
+
+            plate = image[top:bottom, left:right].copy()
+
         binary = prepare_plate(plate)
         boxes, _ = segment_characters(binary)
         count = len(boxes)
