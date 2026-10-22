@@ -14,7 +14,11 @@ from segmentation import (
     prepare_plate,
     segment_characters,
 )
-from perspective import find_perspective_candidates
+
+from perspective import (
+    find_edge_candidates,
+    find_perspective_candidates,
+)
 
 
 class PlateReader:
@@ -78,6 +82,23 @@ class PlateReader:
                 image,
                 preview,
                 perspective_candidates,
+                rectify=True,
+            )
+
+                # Gdy wcześniejsze metody nie znalazły tablicy,
+        # sprawdzamy obwiednie konturów krawędziowych.
+        if selected is None:
+            edge_candidates = find_edge_candidates(edges)
+
+            print(
+                "Próba wykrywania przez obwiednie krawędzi: "
+                f"{len(edge_candidates)} kandydatów"
+            )
+
+            selected = select_plate_candidate(
+                image,
+                preview,
+                edge_candidates,
                 rectify=True,
             )
 

@@ -1,5 +1,4 @@
 import cv2
-
 import numpy as np
 
 
@@ -14,7 +13,7 @@ def prepare_plate(plate):
         cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU,
     )
 
-    return binary
+    return correct_character_slant(binary)
 
 
 def segment_characters(binary):
@@ -23,47 +22,109 @@ def segment_characters(binary):
         connectivity=8,
     )
 
-    plate_height = binary.shape[0]
+    plate_height, plate_width = binary.shape
     boxes = []
 
-    # Element 0 opisuje tło, więc zaczynamy od elementu 1.
     for component in range(1, component_count):
         x, y, width, height, area = stats[component]
+
+        # Pomijamy elementy dotykające brzegu wycinka.
+        # Mogą pochodzić z ramki lub niebieskiego paska.
+        if (
+            x == 0
+            or y == 0
+            or x + width >= plate_width
+            or y + height >= plate_height
+        ):
+            continue
 
         relative_height = height / plate_height
         aspect_ratio = width / height
         fill_ratio = area / (width * height)
 
-        # Znak powinien zajmować znaczną część wysokości tablicy.
         if not 0.45 <= relative_height <= 0.95:
             continue
 
-        # Zachowujemy również wąskie znaki, takie jak cyfra 1.
         if not 0.08 <= aspect_ratio <= 0.95:
             continue
 
-        # Odrzucamy bardzo rzadkie skupiska pikseli.
         if fill_ratio < 0.15:
             continue
 
-        boxes.append((int(x), int(y), int(width), int(height)))
+        boxes.append((
+            int(x),
+            int(y),
+            int(width),
+            int(height),
+        ))
 
-    # Kolejność czytania: od lewej do prawej.
     boxes.sort(key=lambda box: box[0])
 
     characters = []
 
     for x, y, width, height in boxes:
-        character = binary[y:y + height, x:x + width].copy()
+        character = binary[
+            y:y + height,
+            x:x + width,
+        ].copy()
         characters.append(character)
 
     return boxes, characters
+
+
+def correct_character_slant(binary):
+    # Wstępnie wydzielamy znaki, aby oszacować ich wspólny skos.
+    _, characters = segment_characters(binary)
+
+    if len(characters) < 4:
+        return binary
+
+    slopes = []
+
+    for character in characters:
+        moments = cv2.moments(character)
+
+        if abs(moments["mu02"]) < 0.01:
+            continue
+
+        slope = moments["mu11"] / moments["mu02"]
+        slopes.append(slope)
+
+    if not slopes:
+        return binary
+
+    # Mediana ogranicza wpływ pojedynczych nietypowych znaków.
+    slope = float(np.clip(np.median(slopes), -0.5, 0.5))
+
+    # Pomijamy bardzo małe korekty.
+    if abs(slope) < 0.05:
+        return binary
+
+    height, width = binary.shape
+    center_y = (height - 1) / 2
+
+    matrix = np.array(
+        [
+            [1, -slope, slope * center_y],
+            [0, 1, 0],
+        ],
+        dtype=np.float32,
+    )
+
+    return cv2.warpAffine(
+        binary,
+        matrix,
+        (width, height),
+        flags=cv2.INTER_NEAREST,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=0,
+    )
+
 
 def normalize_character(character, size=32, padding=4):
     height, width = character.shape
     available_size = size - 2 * padding
 
-    # Dobieramy skalę z zachowaniem proporcji znaku.
     scale = min(
         available_size / width,
         available_size / height,
@@ -78,10 +139,8 @@ def normalize_character(character, size=32, padding=4):
         interpolation=cv2.INTER_NEAREST,
     )
 
-    # Tworzymy czarne tło.
     canvas = np.zeros((size, size), dtype=np.uint8)
 
-    # Umieszczamy znak na środku obrazka.
     left = (size - new_width) // 2
     top = (size - new_height) // 2
 

@@ -133,3 +133,72 @@ def rectify_plate(image, polygon):
         flags=cv2.INTER_CUBIC,
         borderMode=cv2.BORDER_REPLICATE,
     )
+
+def find_edge_candidates(edges):
+    contours, _ = cv2.findContours(
+        edges,
+        cv2.RETR_LIST,
+        cv2.CHAIN_APPROX_SIMPLE,
+    )
+
+    candidates = []
+    seen = set()
+
+    for contour in contours:
+        # Obejmujemy zewnętrzne punkty poszarpanego konturu.
+        hull = cv2.convexHull(contour)
+        area = cv2.contourArea(hull)
+
+        if not 0.0005 <= area / edges.size <= 0.10:
+            continue
+
+        perimeter = cv2.arcLength(hull, True)
+        polygon = None
+
+        # Najpierw próbujemy dotychczasowego uproszczenia.
+        # Jeśli nie daje czworokąta, próbujemy mocniejszego.
+        for factor in (0.02, 0.03):
+            approximation = cv2.approxPolyDP(
+                hull,
+                factor * perimeter,
+                True,
+            )
+
+            if (
+                len(approximation) == 4
+                and cv2.isContourConvex(approximation)
+            ):
+                polygon = approximation
+                break
+
+        if polygon is None:
+            continue
+
+        top_left, top_right, bottom_right, bottom_left = (
+            order_corners(polygon)
+        )
+
+        width = max(
+            np.linalg.norm(top_right - top_left),
+            np.linalg.norm(bottom_right - bottom_left),
+        )
+        height = max(
+            np.linalg.norm(bottom_left - top_left),
+            np.linalg.norm(bottom_right - top_right),
+        )
+
+        if width < 30 or height < 10:
+            continue
+
+        if not 1.3 <= width / height <= 8.0:
+            continue
+
+        key = tuple(order_corners(polygon).ravel().tolist())
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        candidates.append(polygon)
+
+    return candidates
