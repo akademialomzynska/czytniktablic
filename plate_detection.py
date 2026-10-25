@@ -64,7 +64,7 @@ def find_text_candidates(gray):
 
         # Dodajemy margines wokół znalezionej grupy znaków.
         padding_x = max(2, round(width * 0.08))
-        padding_y = max(2, round(height * 0.35))
+        padding_y = max(2, round(height * 0.10))
 
         left = max(0, x - padding_x)
         top = max(0, y - padding_y)
@@ -214,7 +214,7 @@ def select_plate_candidate(
 
         coverage = (
             boxes[-1][0] + boxes[-1][2] - boxes[0][0]
-        ) / plate.shape[1]
+        ) / binary.shape[1]
 
         if height_variation > 0.35 or line_variation > 0.30:
             continue

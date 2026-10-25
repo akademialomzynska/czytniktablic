@@ -235,7 +235,7 @@ class PlateReaderApp:
 
                 project_dir = Path(__file__).resolve().parent
                 model_dir = (
-                    project_dir / "models" / "20261021_220903"
+                    project_dir / "models" / "20261025_130906"
                 )
 
                 self.reader = PlateReader(model_dir)

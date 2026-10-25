@@ -3,15 +3,50 @@ import numpy as np
 
 
 def prepare_plate(plate):
-    gray = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+    # Powiększamy małe wycinki przed filtrowaniem,
+    # aby filtr działał łagodniej względem rozmiaru znaków.
+    if plate.shape[0] < 64:
+        plate = cv2.resize(
+            plate,
+            None,
+            fx=2,
+            fy=2,
+            interpolation=cv2.INTER_CUBIC,
+        )
 
-    _, binary = cv2.threshold(
-        blurred,
-        0,
-        255,
-        cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU,
+    gray = cv2.cvtColor(plate, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(plate, cv2.COLOR_BGR2HSV)
+
+    yellow_mask = cv2.inRange(
+        hsv,
+        np.array([15, 80, 60], dtype=np.uint8),
+        np.array([40, 255, 255], dtype=np.uint8),
     )
+
+    yellow_ratio = (
+        np.count_nonzero(yellow_mask) / yellow_mask.size
+    )
+
+    if yellow_ratio > 0.25:
+        # Lokalny próg pomaga oddzielić znaki od ramki
+        # i nierównomiernie oświetlonego żółtego tła.
+        binary = cv2.adaptiveThreshold(
+            gray,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY_INV,
+            31,
+            5,
+        )
+    else:
+        blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+
+        _, binary = cv2.threshold(
+            blurred,
+            0,
+            255,
+            cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU,
+        )
 
     return correct_character_slant(binary)
 

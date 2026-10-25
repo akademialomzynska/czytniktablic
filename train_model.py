@@ -84,7 +84,7 @@ def build_model(number_of_classes):
 
 def main():
     project_dir = Path(__file__).resolve().parent
-    dataset_dir = project_dir / "data" / "synthetic_v3"
+    dataset_dir = project_dir / "data" / "synthetic_v5_pl_de_uk"
     print(f"Zbiór danych do treningu: {dataset_dir}")
     info_path = dataset_dir / "dataset_info.json"
 
